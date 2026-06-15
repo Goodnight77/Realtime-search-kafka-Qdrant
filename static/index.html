@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HN Live Vector Search</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(1200px 800px at 80% -10%, #1a2434 0%, transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, #1c1426 0%, transparent 55%),
+      #0b0d10;
+    color: #e6e6e6;
+  }
+  header {
+    padding: 22px 32px;
+    border-bottom: 1px solid #1f2329;
+    background: rgba(11,13,16,0.6);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { display: flex; align-items: center; }
+  .logo { height: 32px; width: auto; margin-right: 12px; }
+  h1 {
+    margin: 0; font-size: 14px; letter-spacing: 1px;
+    font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    color: #e6e6e6;
+  }
+  h1 .accent { color: #4ade80; }
+  .stat {
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    color: #8b949e; display: flex; gap: 16px;
+  }
+  .stat .pill {
+    padding: 4px 10px; border-radius: 999px;
+    background: #11151b; border: 1px solid #1f2329;
+  }
+  .stat .pill b { color: #4ade80; font-weight: 600; }
+  .stat .dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: #6b7280; margin-right: 6px; vertical-align: middle;
+  }
+  .stat .dot.ok { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+
+  main { max-width: 960px; margin: 0 auto; padding: 36px 32px 60px; }
+
+  .mode-toggle {
+    display: inline-flex; padding: 4px; gap: 4px;
+    background: #11151b; border: 1px solid #1f2329; border-radius: 10px;
+    margin-bottom: 18px;
+  }
+  .mode-toggle label { cursor: pointer; }
+  .mode-toggle input[type="radio"] { display: none; }
+  .mode-toggle span {
+    display: inline-block; padding: 7px 14px; border-radius: 7px;
+    font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: #8b949e;
+    transition: background 0.15s, color 0.15s;
+  }
+  .mode-toggle input[type="radio"]:checked + span {
+    background: #1a2028; color: #4ade80;
+  }
+
+  .search-bar {
+    display: flex; gap: 10px; margin-bottom: 16px;
+    background: #11151b; border: 1px solid #1f2329; border-radius: 12px; padding: 6px;
+    transition: border-color 0.15s;
+  }
+  .search-bar:focus-within { border-color: #4ade80; }
+  input[type="text"] {
+    flex: 1; padding: 14px 16px; font-size: 15px;
+    background: transparent; color: #e6e6e6;
+    border: none; outline: none;
+  }
+  input[type="number"] {
+    width: 70px; padding: 14px 10px; font-size: 15px;
+    background: #0b0d10; color: #e6e6e6;
+    border: 1px solid #1f2329; border-radius: 8px; text-align: center;
+    font-family: "JetBrains Mono", monospace;
+  }
+  select {
+    padding: 0 12px; font-size: 13px;
+    background: #0b0d10; color: #e6e6e6;
+    border: 1px solid #1f2329; border-radius: 8px;
+    font-family: "JetBrains Mono", monospace;
+  }
+  button {
+    padding: 12px 22px; font-size: 14px; font-weight: 600;
+    background: #4ade80; color: #0b0d10;
+    border: none; border-radius: 8px; cursor: pointer;
+    transition: transform 0.1s, opacity 0.15s;
+  }
+  button:hover { opacity: 0.9; }
+  button:active { transform: scale(0.97); }
+
+  #status {
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    color: #8b949e; margin: 12px 0 22px;
+    padding: 9px 14px; background: #0e1116; border-radius: 7px;
+    border-left: 3px solid #2a313a;
+  }
+  #status.live { border-left-color: #4ade80; color: #4ade80; }
+  #status.live::before {
+    content: "● "; animation: blink 1.4s infinite;
+  }
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+  }
+
+  .hits { display: flex; flex-direction: column; gap: 10px; }
+  .hit {
+    padding: 16px 18px;
+    background: linear-gradient(180deg, #11161d 0%, #0e1218 100%);
+    border: 1px solid #1f2329; border-radius: 10px;
+    animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hit.new { border-color: #4ade8044; box-shadow: 0 0 0 1px #4ade8022; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hit-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 9px;
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: #8b949e;
+  }
+  .meta-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .source { color: #f9a826; text-decoration: none; }
+  .source:hover { text-decoration: underline; }
+  .chip {
+    padding: 2px 7px; border-radius: 999px;
+    background: #1a2028; color: #c9d1d9;
+    border: 1px solid #2a313a;
+  }
+  .chip.semantic { color: #facc15; }
+  .chip.lexical { color: #4ade80; }
+  .article-link { color: #4ade80; text-decoration: none; }
+  .article-link:hover { text-decoration: underline; }
+  .score-wrap { display: flex; align-items: center; gap: 8px; }
+  .score-wrap.low { color: #fb7185; }
+  .score-wrap.mid { color: #facc15; }
+  .score-wrap.high { color: #4ade80; }
+  .score-bar {
+    display: inline-block; width: 70px; height: 4px;
+    background: #1f2329; border-radius: 2px; overflow: hidden;
+  }
+  .score-bar > div {
+    height: 100%; background: #4ade80;
+    transition: width 0.4s ease-out;
+  }
+  .score-wrap.low .score-bar > div { background: #fb7185; }
+  .score-wrap.mid .score-bar > div { background: #facc15; }
+  .score-wrap.high .score-bar > div { background: #4ade80; }
+  .text { line-height: 1.55; color: #d1d5db; font-size: 14px; word-wrap: break-word; }
+
+  .empty {
+    text-align: center; color: #6b7280; padding: 70px 20px;
+    font-family: "JetBrains Mono", monospace; font-size: 12.5px;
+    border: 1px dashed #1f2329; border-radius: 10px;
+  }
+  .footer {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid #1f2329;
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: #6b7280;
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  .footer a { color: #4ade80; text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="/static/img.png" alt="logo" class="logo">
+    <h1>// <span class="accent">HN</span>_LIVE_VECTOR_SEARCH</h1>
+  </div>
+  <div class="stat">
+    <span class="pill"><span class="dot" id="dot"></span>kafka</span>
+    <span class="pill">ingested <b id="ingested">…</b></span>
+    <span class="pill">in window <b id="inwindow">…</b></span>
+    <span class="pill">window <b id="window">24h</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="mode-toggle">
+    <label><input type="radio" name="mode" value="rest" checked><span>REST  /search</span></label>
+    <label><input type="radio" name="mode" value="ws"><span>WS  /ws/search · live</span></label>
+  </div>
+
+  <div class="search-bar">
+    <input id="q" type="text" placeholder="search latest Hacker News vectors…" autofocus />
+    <select id="source" aria-label="Source filter">
+      <option value="">all</option>
+      <option value="hn:story">stories</option>
+      <option value="hn:comment">comments</option>
+      <option value="hn:ask">ask</option>
+      <option value="hn:job">jobs</option>
+      <option value="hn:poll">polls</option>
+    </select>
+    <input id="k" type="number" min="1" max="20" value="10" />
+    <button id="go">Search</button>
+  </div>
+
+  <div id="status">idle · type a query and hit Search</div>
+  <div id="hits" class="hits">
+    <div class="empty">no results yet — try "rust", "AI startups", "cryptography"…</div>
+  </div>
+
+  <div class="footer">
+    <span>source: <a href="https://hacker-news.firebaseio.com/v0/maxitem.json" target="_blank">HN Firebase</a></span>
+    <span>embed: fastembed bge-small-en-v1.5 (384-d)</span>
+    <span>store: Qdrant Cloud</span>
+    <span><a href="/docs">/docs</a></span>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ws = null;
+let prevIds = new Set();
+
+async function pollHealth() {
+  try {
+    const r = await fetch("/health");
+    const j = await r.json();
+    $("ingested").textContent = j.ingested ?? "0";
+    $("inwindow").textContent = j.in_window ?? "0";
+    if (j.window_seconds) $("window").textContent = `${Math.round(j.window_seconds / 3600)}h`;
+    $("dot").classList.add("ok");
+  } catch {
+    $("dot").classList.remove("ok");
+  }
+}
+pollHealth();
+setInterval(pollHealth, 3000);
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function requestBody(query, k) {
+  const source = $("source").value || null;
+  return {
+    query,
+    k,
+    source
+  };
+}
+
+function scoreClass(score) {
+  if (score < 0.4) return "low";
+  if (score < 0.55) return "mid";
+  return "high";
+}
+
+function render(hits) {
+  const c = $("hits");
+  if (!hits.length) {
+    c.innerHTML = '<div class="empty">no results in current window</div>';
+    prevIds = new Set();
+    return;
+  }
+  const ids = new Set(hits.map(h => h.id));
+  c.innerHTML = hits.map(h => {
+    const isNew = !prevIds.has(h.id);
+    const ts = h.payload?.ts ? new Date(h.payload.ts * 1000).toLocaleTimeString() : "";
+    const src = h.payload?.source || "unknown";
+    const hnUrl = h.payload?.hn_url || "";
+    const author = h.payload?.author || "";
+    const externalUrl = h.payload?.external_url || "";
+    const evidence = h.evidence || {};
+    const text = h.payload?.text || "";
+    const pct = Math.round((h.score || 0) * 100);
+    const score = h.score || 0;
+    const sourceHtml = hnUrl
+      ? `<a class="source" href="${escapeHtml(hnUrl)}" target="_blank" rel="noreferrer">${escapeHtml(src)}</a>`
+      : `<span class="source">${escapeHtml(src)}</span>`;
+    const authorHtml = author ? `<span class="chip">@${escapeHtml(author)}</span>` : "";
+    const matchType = evidence.match_type || "semantic";
+    const evidenceHtml = `<span class="chip ${escapeHtml(matchType)}">${escapeHtml(matchType)}</span>`;
+    const articleHtml = externalUrl
+      ? `<a class="article-link" href="${escapeHtml(externalUrl)}" target="_blank" rel="noreferrer">article</a>`
+      : "";
+    return `
+      <div class="hit ${isNew ? "new" : ""}">
+        <div class="hit-meta">
+          <span class="meta-left">${sourceHtml}<span>${ts}</span>${authorHtml}${evidenceHtml}${articleHtml}</span>
+          <span class="score-wrap ${scoreClass(score)}">
+            score ${score.toFixed(3)}
+            <span class="score-bar"><div style="width:${pct}%"></div></span>
+          </span>
+        </div>
+        <div class="text">${escapeHtml(text)}</div>
+      </div>
+    `;
+  }).join("");
+  prevIds = ids;
+}
+
+function setStatus(text, live=false) {
+  const s = $("status");
+  s.textContent = text;
+  s.classList.toggle("live", live);
+}
+
+async function restSearch() {
+  const query = $("q").value.trim();
+  const k = parseInt($("k").value, 10) || 5;
+  if (!query) return;
+  const body = requestBody(query, k);
+  setStatus(`POST /search  q="${query}" k=${k}`);
+  try {
+    const r = await fetch("/search", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    setStatus(`${j.hits.length} hit(s) for "${j.query}"`);
+    render(j.hits);
+  } catch (e) {
+    setStatus(`error: ${e.message}`);
+  }
+}
+
+function wsSearch() {
+  const query = $("q").value.trim();
+  const k = parseInt($("k").value, 10) || 5;
+  if (!query) return;
+  const body = requestBody(query, k);
+  if (ws) { ws.close(); ws = null; }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const sock = new WebSocket(`${proto}://${location.host}/ws/search`);
+  ws = sock;
+  sock.onopen = () => {
+    sock.send(JSON.stringify(body));
+    setStatus(`WS /ws/search  q="${query}" k=${k}`, true);
+  };
+  sock.onmessage = (e) => {
+    const j = JSON.parse(e.data);
+    render(j.hits);
+    setStatus(`live · ${j.hits.length} hits for "${j.query}" · ${new Date().toLocaleTimeString()}`, true);
+  };
+  sock.onerror = () => { if (ws === sock) setStatus("ws error"); };
+  sock.onclose = () => { if (ws === sock) setStatus("ws closed"); };
+}
+
+function go() {
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  if (mode === "rest") {
+    if (ws) { ws.close(); ws = null; }
+    restSearch();
+  } else {
+    wsSearch();
+  }
+}
+
+$("go").addEventListener("click", go);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+let debounceTimer = null;
+$("q").addEventListener("input", () => {
+  clearTimeout(debounceTimer);
+  if (!$("q").value.trim()) return;
+  debounceTimer = setTimeout(go, 250);
+});
+document.querySelectorAll('input[name=mode]').forEach(r => {
+  r.addEventListener("change", () => {
+    if (ws) { ws.close(); ws = null; }
+    setStatus("mode changed · idle");
+  });
+});
+$("source").addEventListener("change", () => {
+  if ($("q").value.trim()) go();
+});
+</script>
+</body>
+</html>
