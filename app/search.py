@@ -5,6 +5,7 @@ from qdrant_client.http import models as qm
 
 from .config import settings
 from .embedder import embed_one, embed_sparse_one
+from .metrics import SEARCH_LATENCY
 from .qdrant_client_factory import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME, get_client
 
 
@@ -83,6 +84,11 @@ async def search(
     k: int = 5,
     source: str | None = None,
 ) -> list[dict]:
+    with SEARCH_LATENCY.time():
+        return await _search(query, k, source)
+
+
+async def _search(query: str, k: int, source: str | None) -> list[dict]:
     vector = await embed_one(query)
     sparse_vector = await embed_sparse_one(query)
     cutoff = int(time.time()) - settings.window_seconds

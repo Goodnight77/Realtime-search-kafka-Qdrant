@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, TopicPartition
 
 from .config import settings
+from .metrics import KAFKA_CONSUMER_LAG
 
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ async def kafka_source(queue: asyncio.Queue) -> None:
     )
     try:
         async for msg in consumer:
+            highwater = consumer.highwater(TopicPartition(msg.topic, msg.partition))
+            if highwater is not None:
+                lag = max(highwater - msg.offset - 1, 0)
+                KAFKA_CONSUMER_LAG.labels(topic=msg.topic, partition=msg.partition).set(lag)
             v = msg.value
             if isinstance(v, dict) and v.get("text"):
                 await queue.put(v)
