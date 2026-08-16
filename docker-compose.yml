@@ -61,7 +61,7 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    command: ["python", "hn_producer.py"]
+    command: ["python", "-m", "producers.hn_producer"]
     depends_on:
       - kafka
 

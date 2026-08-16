@@ -8,7 +8,7 @@ RUN uv pip install --system --no-cache -r requirements.txt
 
 COPY app ./app
 COPY static ./static
-COPY hn_producer.py ./
+COPY producers ./producers
 
 EXPOSE 8000
 

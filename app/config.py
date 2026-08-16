@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     kafka_topic: str = "stream_search"
     kafka_group_id: str = "stream_search_consumer"
 
+    rss_feed_url: str = ""
+
     batch_size: int = 32
     batch_flush_ms: int = 500
 

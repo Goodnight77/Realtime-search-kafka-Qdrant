@@ -98,8 +98,11 @@ uvicorn app.api:app --host 0.0.0.0 --port 8000
 
 Terminal 2 real-data producer:
 ```bash
-python hn_producer.py
+python -m producers.hn_producer
 ```
+Producers live in `producers/` and are pluggable (`app/sources/`, one `Source` interface, `run_producer()` shared by all). A second one ships as an example set `RSS_FEED_URL` in `.env`, then `python -m producers.rss_producer` feeds the same Kafka topic from an RSS feed instead.
+
+(`python -m producers.hn_producer`, not `python producers/hn_producer.py` — the `-m` form puts the repo root on `sys.path` so `import app` resolves, same reason tests run via `python -m pytest`.)
 
 Terminal 3 live search subscription:
 ```bash
