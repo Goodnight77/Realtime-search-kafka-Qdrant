@@ -161,8 +161,9 @@ Once the API is up, open **http://localhost:8000/** a live REST/WebSocket search
 
 ```bash
 uv pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
+(`python -m pytest`, not bare `pytest` — the `-m` form puts the repo root on `sys.path` so `import app` resolves; bare `pytest` doesn't.)
 Unit tests mock the Qdrant client and embedder no live Qdrant/Kafka/Docker needed. Covers dedup id generation, window trim + `ts` cutoff filters, hybrid RRF query construction, and the Prometheus metrics wiring.
 
 ## Metrics

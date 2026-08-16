@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements-dev.txt
-      - run: pytest
+      - run: python -m pytest
 
   docker-build:
     runs-on: ubuntu-latest
