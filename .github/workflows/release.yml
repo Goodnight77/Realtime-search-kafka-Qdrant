@@ -27,25 +27,28 @@ jobs:
 
           if [ -z "$latest" ]; then
             next="v0.1.0"
-          else
+          elif [[ "$HEAD_REF" == feat/* ]]; then
+            version="${latest#v}"
+            major=$(echo "$version" | cut -d. -f1)
+            minor=$(echo "$version" | cut -d. -f2)
+            next="v${major}.$((minor + 1)).0"
+          elif [[ "$HEAD_REF" == fix/* || "$HEAD_REF" == bug/* ]]; then
             version="${latest#v}"
             major=$(echo "$version" | cut -d. -f1)
             minor=$(echo "$version" | cut -d. -f2)
             patch=$(echo "$version" | cut -d. -f3)
-
-            if [[ "$HEAD_REF" == feat/* ]]; then
-              minor=$((minor + 1))
-              patch=0
-            else
-              patch=$((patch + 1))
-            fi
-            next="v${major}.${minor}.${patch}"
+            next="v${major}.${minor}.$((patch + 1))"
+          else
+            echo "branch '$HEAD_REF' matches neither feat/ nor fix/|bug/ skipping release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           echo "computed next=$next (latest=${latest:-none} branch=$HEAD_REF)"
           echo "next=$next" >> "$GITHUB_OUTPUT"
 
       - name: Tag and create release
+        if: steps.version.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT: ${{ steps.version.outputs.next }}
