@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     qdrant_api_key: str
     qdrant_url: str
 
+    api_key: str = ""
+
     collection_name: str = "stream_search"
     embed_model: str = "BAAI/bge-small-en-v1.5"
     sparse_embed_model: str = "Qdrant/bm25"

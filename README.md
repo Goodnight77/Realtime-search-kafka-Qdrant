@@ -128,7 +128,14 @@ OpenAPI: http://localhost:8000/docs
 ```bash
 docker compose up --build
 ```
-Brings up Kafka + API + hn_producer. **Qdrant Cloud is the default** nothing else to run, no local vector database container at all.
+Brings up Kafka + API + hn_producer. **Qdrant Cloud is the default** nothing else to run, no local vector database container at all. `api`'s port `8000` is bound to `127.0.0.1` only.
+
+### Exposing it publicly (rate-limited)
+
+```bash
+docker compose --profile public up --build
+```
+Additionally starts an `nginx` container on port `80`, rate-limiting `/search` and `/ws/search` per IP (`nginx/nginx.conf`) and capping concurrent websockets per IP so bots/hammering get throttled without needing an API key or accounts. `api`'s `8000` stays localhost-only either way nginx is the only port reachable from outside.
 
 ### Want to self-host Qdrant instead of Cloud?
 
@@ -149,6 +156,19 @@ Same code either way hybrid query, payload filters, window eviction work identic
 Once the API is up, open **http://localhost:8000/** a live REST/WebSocket search console with a real-time `kafka`/`ingested` health pill. Must be loaded from the server (not opened as a local file), since it polls `/health` and `/search` over relative paths.
 
 ![UI](static/ui.png)
+
+## Tests
+
+```bash
+uv pip install -r requirements-dev.txt
+python -m pytest
+```
+(`python -m pytest`, not bare `pytest` — the `-m` form puts the repo root on `sys.path` so `import app` resolves; bare `pytest` doesn't.)
+Unit tests mock the Qdrant client and embedder no live Qdrant/Kafka/Docker needed. Covers dedup id generation, window trim + `ts` cutoff filters, hybrid RRF query construction, and the Prometheus metrics wiring.
+
+## Metrics
+
+`GET /metrics` exposes Prometheus text format: `ingest_total{source=...}`, `search_latency_seconds`, `kafka_consumer_lag{topic=...,partition=...}`. Unauthenticated, same as `/health`.
 
 ## Window semantics
 

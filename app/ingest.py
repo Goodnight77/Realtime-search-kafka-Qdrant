@@ -8,6 +8,7 @@ from qdrant_client.http import models as qm
 
 from .config import settings
 from .embedder import embed, embed_sparse
+from .metrics import INGEST_TOTAL
 from .qdrant_client_factory import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME, get_client
 
 
@@ -76,6 +77,8 @@ async def _flush(buf: list[dict]) -> None:
             )
         )
     await client.upsert(collection_name=settings.collection_name, points=points)
+    for p in points:
+        INGEST_TOTAL.labels(source=p.payload["source"]).inc()
     state.total_ingested += len(points)
     log.info("upserted %d (total=%d)", len(points), state.total_ingested)
     buf.clear()

@@ -2,10 +2,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from .embedder import warmup as embedder_warmup
 from .ingest import batch_writer, state, window_cleaner
@@ -64,6 +65,11 @@ class SearchRequest(BaseModel):
     source: str | None = None
 
 
+async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    if settings.api_key and x_api_key != settings.api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid or missing API key")
+
+
 @app.get("/health")
 async def health():
     client = get_client()
@@ -77,7 +83,12 @@ async def health():
     }
 
 
-@app.post("/search")
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/search", dependencies=[Depends(require_api_key)])
 async def search_endpoint(req: SearchRequest):
     hits = await search(req.query, req.k, req.source)
     return {
@@ -90,6 +101,9 @@ async def search_endpoint(req: SearchRequest):
 
 @app.websocket("/ws/search")
 async def ws_search(ws: WebSocket):
+    if settings.api_key and ws.headers.get("x-api-key") != settings.api_key:
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
     await ws.accept()
     try:
         init = await ws.receive_json()
