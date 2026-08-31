@@ -58,3 +58,29 @@ async def test_rss_source_requires_feed_url():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+async def test_atom_publication_metadata_and_html_cleanup():
+    source = RSSSource("https://example.com/feed", source_id="example", source_name="Example")
+    source._http = FakeHTTP('''<feed xmlns="http://www.w3.org/2005/Atom">
+      <entry><id>article-1</id><title>A &amp; B</title>
+      <summary>&lt;p&gt;Clean description&lt;/p&gt;</summary>
+      <link rel="self" href="https://example.com/api/1"/>
+      <link href="https://example.com/article/1"/>
+      <published>2026-09-08T12:00:00Z</published></entry></feed>''')
+    messages = await source.poll()
+    assert len(messages) == 1
+    assert messages[0]["source"] == "rss:example"
+    assert messages[0]["source_name"] == "Example"
+    assert messages[0]["external_url"] == "https://example.com/article/1"
+    assert "<p>" not in messages[0]["text"]
+    assert messages[0]["ts"] == 1788868800
+    assert await source.poll() == []
+
+
+async def test_non_feed_html_is_rejected():
+    import pytest
+    source = RSSSource("https://example.com")
+    source._http = FakeHTTP("<html><body>Not a feed</body></html>")
+    with pytest.raises(ValueError, match="RSS 2.0 or Atom"):
+        await source.poll()

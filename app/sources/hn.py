@@ -45,6 +45,7 @@ def _to_msg(item: dict | None) -> dict | None:
     item_id = item.get("id")
     return {
         "text": body[:2000],
+        "title": _clean(title),
         "source": f"hn:{t}",
         "ts": int(item.get("time") or 0),
         "id": item_id,

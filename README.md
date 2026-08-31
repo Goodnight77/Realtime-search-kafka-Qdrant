@@ -11,7 +11,7 @@
 </p>
 
 <p>
-    A live Hacker News firehose, turned into instant hybrid vector search. Qdrant is doing all the hard work.
+    Live technology news from Hacker News, Ars Technica, WIRED, Lobsters, TechCrunch, The Verge, and Reddit, turned into hybrid vector search. Qdrant is doing all the hard work.
 </p>
 
 </div>
@@ -185,3 +185,13 @@ Producer emits:
 ```json
 {"text": "...", "source": "hn:story|comment|ask|job|poll", "ts": <epoch>, "id": <hn_id>}
 ```
+
+## Curated news sources
+
+The API automatically publishes the RSS/Atom feeds in `app/sources/catalog.py` to Kafka. Hacker News continues through `python -m producers.hn_producer`. Readers can search across publications or use the source filter; they cannot add, change, or remove sources. `GET /sources` exposes the read-only catalog.
+
+To change publications, edit `FEEDS` in `app/sources/catalog.py` and restart the API. Keep each ID stable: it identifies articles for deduplication and source filtering. Each feed polls every 30 seconds, handles failures independently, and retries pending Kafka messages before fetching more. Article publication times still follow the configured retention window. Some publishers may reject feed requests; failures are logged and retried.
+
+Run one API worker per instance, since it owns these feed publishers. Avoid running a standalone RSS producer for a feed already in the catalog. The UI and catalog remain available while search dependencies start; search returns HTTP 503 until Qdrant and embedding models are ready. Kafka is still required for collecting news. No source-management database is required.
+
+The Today’s News sidebar shows up to five recent article headlines from the last 24 hours (or the shorter configured retention window), excluding HN comments. It refreshes every 15 seconds independently of search. On smaller screens it appears below the search controls. `GET /news` returns these headlines and uses the same optional API-key protection as search.

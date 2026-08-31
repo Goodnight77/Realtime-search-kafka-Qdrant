@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>HN Live Vector Search</title>
+<title>Live News Search</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -47,7 +47,7 @@
   }
   .stat .dot.ok { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
 
-  main { max-width: 960px; margin: 0 auto; padding: 36px 32px 60px; }
+  main { max-width: 1360px; margin: 0 auto; padding: 36px 32px 60px; }
 
   .mode-toggle {
     display: inline-flex; padding: 4px; gap: 4px;
@@ -171,15 +171,54 @@
   .footer a { color: #4ade80; text-decoration: none; }
   .footer a:hover { text-decoration: underline; }
 </style>
+<style>
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; column-gap: 32px; align-items: start; }
+  .intro, .search-controls, #hits, .footer { grid-column: 1; min-width: 0; }
+  .intro { grid-row: 1; }
+  .search-controls { grid-row: 2; }
+  #hits { grid-row: 3; }
+  .footer { grid-row: 4; }
+  .search-bar { flex-wrap: wrap; }
+  #q { min-width: 150px; }
+  #source { max-width: 190px; }
+  .news-card { grid-column: 2; grid-row: 1 / span 4; position: sticky; top: 100px; border: 1px solid #2a313a; border-radius: 18px; background: rgba(13, 17, 22, .95); overflow: hidden; }
+  .news-heading { display: flex; align-items: center; justify-content: space-between; padding: 22px 22px 8px; gap: 12px; }
+  .news-heading h2 { font-size: 21px; letter-spacing: -.5px; margin: 0; }
+  .news-live { color: #8b949e; font-size: 11px; white-space: nowrap; }
+  .news-live::before { content: ""; display: inline-block; width: 6px; height: 6px; background: currentColor; border-radius: 50%; margin-right: 5px; }
+  .news-live.connected { color: #4ade80; }
+  .news-caption { color: #8b949e; font-size: 12px; margin: 0; padding: 0 22px 14px; }
+  .news-list { list-style: none; margin: 0; padding: 0; }
+  .news-list li + li { border-top: 1px solid #1f2329; }
+  .news-link { display: block; padding: 18px 22px; color: #e6e6e6; text-decoration: none; transition: background .15s; }
+  .news-link:hover { background: #171e26; }
+  .news-link:focus-visible { outline: 2px solid #4ade80; outline-offset: -3px; }
+  .news-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 15px; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+  .news-meta { display: flex; flex-wrap: wrap; gap: 6px; color: #8b949e; font-size: 12px; line-height: 1.5; margin-top: 9px; }
+  .news-publication { color: #a7c3b4; }
+  .news-message { margin: 0; padding: 14px 22px 20px; color: #8b949e; font-size: 12px; line-height: 1.5; }
+  @media (max-width: 1000px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+    .news-card { grid-column: 1; grid-row: 3; position: static; margin-bottom: 24px; }
+    #hits { grid-row: 4; } .footer { grid-row: 5; }
+  }
+  .intro { margin-bottom: 26px; }
+  .intro h2 { font-size: 28px; margin: 0 0 8px; }
+  .intro p { color: #a6b0bc; line-height: 1.6; margin: 0; }
+  #publications { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  #publications span { padding: 6px 10px; background: #11151b; border: 1px solid #2a313a; border-radius: 20px; font-size: 12px; }
+  #service-status { color: #facc15; font-size: 13px; margin: 12px 0; }
+  @media (max-width: 700px) { header { position: static; padding: 18px; flex-wrap: wrap; gap: 16px; } main { padding: 22px 16px; } .stat { flex-wrap: wrap; gap: 8px; } .search-bar { flex-wrap: wrap; } #q { width: 100%; } }
+</style>
 </head>
 <body>
 <header>
   <div class="brand">
     <img src="/static/img.png" alt="logo" class="logo">
-    <h1>// <span class="accent">HN</span>_LIVE_VECTOR_SEARCH</h1>
+    <h1>// <span class="accent">NEWS</span>_LIVE_SEARCH</h1>
   </div>
   <div class="stat">
-    <span class="pill"><span class="dot" id="dot"></span>kafka</span>
+    <span class="pill"><span class="dot" id="dot"></span>search</span>
     <span class="pill">ingested <b id="ingested">…</b></span>
     <span class="pill">in window <b id="inwindow">…</b></span>
     <span class="pill">window <b id="window">24h</b></span>
@@ -187,15 +226,22 @@
 </header>
 
 <main>
+  <section class="intro">
+    <h2>One search. Multiple perspectives.</h2>
+    <p>Explore the latest technology news and conversations across our selected publications.</p>
+    <div id="publications" aria-label="News publications"></div>
+    <div id="service-status" role="status" aria-live="polite"></div>
+  </section>
+  <section class="search-controls" aria-label="Search controls">
   <div class="mode-toggle">
-    <label><input type="radio" name="mode" value="rest" checked><span>REST  /search</span></label>
-    <label><input type="radio" name="mode" value="ws"><span>WS  /ws/search · live</span></label>
+    <label><input type="radio" name="mode" value="rest" checked><span>Search</span></label>
+    <label><input type="radio" name="mode" value="ws"><span>Live updates</span></label>
   </div>
 
   <div class="search-bar">
-    <input id="q" type="text" placeholder="search latest Hacker News vectors…" autofocus />
+    <input id="q" type="text" placeholder="Search the latest news across your sources…" aria-label="Search news" autofocus />
     <select id="source" aria-label="Source filter">
-      <option value="">all</option>
+      <option value="">All sources</option>
       <option value="hn:story">stories</option>
       <option value="hn:comment">comments</option>
       <option value="hn:ask">ask</option>
@@ -207,12 +253,19 @@
   </div>
 
   <div id="status">idle · type a query and hit Search</div>
+  </section>
+  <aside class="news-card" aria-labelledby="news-heading">
+    <div class="news-heading"><h2 id="news-heading">Today’s News</h2><span id="news-live" class="news-live">Connecting</span></div>
+    <p class="news-caption">Latest headlines · past 24 hours</p>
+    <ol id="news-list" class="news-list"></ol>
+    <p id="news-message" class="news-message" role="status">Loading the latest headlines…</p>
+  </aside>
   <div id="hits" class="hits">
     <div class="empty">no results yet — try "rust", "AI startups", "cryptography"…</div>
   </div>
 
   <div class="footer">
-    <span>source: <a href="https://hacker-news.firebaseio.com/v0/maxitem.json" target="_blank">HN Firebase</a></span>
+    <span>Technology news from selected publications</span>
     <span>embed: fastembed bge-small-en-v1.5 (384-d)</span>
     <span>store: Qdrant Cloud</span>
     <span><a href="/docs">/docs</a></span>
@@ -223,21 +276,92 @@
 const $ = (id) => document.getElementById(id);
 let ws = null;
 let prevIds = new Set();
+async function loadSources() {
+  try {
+    const response = await fetch("/sources");
+    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error("Source information is temporarily unavailable.");
+    const data = await response.json();
+    $("publications").replaceChildren(...data.sources.map(feed => {
+      const label = document.createElement("span"); label.textContent = feed.name; return label;
+    }));
+    const select = $("source"), selected = select.value;
+    select.querySelectorAll('[data-feed]').forEach(option => option.remove());
+    for (const feed of data.sources.filter(feed => feed.filter)) {
+      const option = new Option(feed.name, feed.filter); option.dataset.feed = "true"; select.add(option);
+    }
+    if ([...select.options].some(option => option.value === selected)) select.value = selected;
+  } catch (error) { $("service-status").textContent = error.message; }
+}
+loadSources();
+function safeUrl(value) {
+  try { const url = new URL(value); return ["https:", "http:"].includes(url.protocol) ? url.href : ""; } catch { return ""; }
+}
 
+let newsSignature = "";
+function relativeNewsTime(timestamp) {
+  const minutes = Math.max(0, Math.floor((Date.now() / 1000 - timestamp) / 60));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+async function refreshNews() {
+  try {
+    if (document.hidden) return;
+    const response = await fetch("/news", {signal: AbortSignal.timeout(12000)});
+    if (!response.ok) throw new Error("Headlines temporarily unavailable");
+    const data = await response.json();
+    const articles = data.articles.filter(article => safeUrl(article.url));
+    const signature = JSON.stringify(articles);
+    // Preserve keyboard focus on headlines when nothing has changed.
+    if (signature !== newsSignature) {
+      $("news-list").replaceChildren(...articles.map(article => {
+        const item = document.createElement("li");
+        const link = document.createElement("a"); link.className = "news-link";
+        link.href = safeUrl(article.url); link.target = "_blank"; link.rel = "noopener noreferrer";
+        const title = document.createElement("span"); title.className = "news-title"; title.textContent = article.title;
+        const meta = document.createElement("span"); meta.className = "news-meta";
+        const publication = document.createElement("span"); publication.className = "news-publication"; publication.textContent = article.source;
+        const time = document.createElement("time"); time.dataset.ts = article.ts;
+        time.dateTime = new Date(article.ts * 1000).toISOString(); time.title = new Date(article.ts * 1000).toLocaleString();
+        meta.append(publication, document.createTextNode(" · "), time);
+        link.append(title, meta); item.append(link); return item;
+      }));
+      newsSignature = signature;
+    }
+    $("news-list").querySelectorAll("time").forEach(time => { time.textContent = relativeNewsTime(Number(time.dataset.ts)); });
+    $("news-live").textContent = "Live";
+    $("news-live").classList.add("connected");
+    $("news-message").textContent = articles.length ? "Updates automatically · opens original articles" : "No recent headlines yet. New stories will appear here as they arrive.";
+  } catch {
+    $("news-live").textContent = "Reconnecting";
+    $("news-live").classList.remove("connected");
+    $("news-message").textContent = $("news-list").children.length ? "Showing the last update. Retrying shortly…" : "Headlines are temporarily unavailable. Retrying shortly…";
+  } finally { setTimeout(refreshNews, 15000); }
+}
+refreshNews();
+
+let failedHealthChecks = 0;
 async function pollHealth() {
   try {
-    const r = await fetch("/health");
+    const r = await fetch("/health", {signal: AbortSignal.timeout(12000)});
+    if (!r.ok) throw new Error("Connection check failed");
+    if (!r.headers.get("content-type")?.includes("application/json")) throw new Error("The search service is unavailable. Open this page through the app server.");
     const j = await r.json();
     $("ingested").textContent = j.ingested ?? "0";
     $("inwindow").textContent = j.in_window ?? "0";
     if (j.window_seconds) $("window").textContent = `${Math.round(j.window_seconds / 3600)}h`;
+    failedHealthChecks = 0;
+    $("dot").title = "Search database connected";
     $("dot").classList.add("ok");
-  } catch {
+    $("service-status").textContent = "";
+  } catch (error) {
+    failedHealthChecks += 1;
+    $("dot").title = "Checking connection…";
     $("dot").classList.remove("ok");
-  }
+    if (failedHealthChecks >= 2) $("service-status").textContent = "Connection checks are failing. Retrying automatically; displayed articles are kept.";
+  } finally { setTimeout(pollHealth, 5000); }
 }
 pollHealth();
-setInterval(pollHealth, 3000);
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -269,10 +393,10 @@ function render(hits) {
   c.innerHTML = hits.map(h => {
     const isNew = !prevIds.has(h.id);
     const ts = h.payload?.ts ? new Date(h.payload.ts * 1000).toLocaleTimeString() : "";
-    const src = h.payload?.source || "unknown";
-    const hnUrl = h.payload?.hn_url || "";
+    const src = h.payload?.source_name || h.payload?.source || "unknown";
+    const hnUrl = safeUrl(h.payload?.hn_url || "");
     const author = h.payload?.author || "";
-    const externalUrl = h.payload?.external_url || "";
+    const externalUrl = safeUrl(h.payload?.external_url || "");
     const evidence = h.evidence || {};
     const text = h.payload?.text || "";
     const pct = Math.round((h.score || 0) * 100);
@@ -320,7 +444,9 @@ async function restSearch() {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
     });
+    if (!r.headers.get("content-type")?.includes("application/json")) throw new Error("The search service is unavailable. Open this page through the app server.");
     const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Search failed");
     setStatus(`${j.hits.length} hit(s) for "${j.query}"`);
     render(j.hits);
   } catch (e) {
@@ -343,6 +469,7 @@ function wsSearch() {
   };
   sock.onmessage = (e) => {
     const j = JSON.parse(e.data);
+    if (j.error) { setStatus(j.error); return; }
     render(j.hits);
     setStatus(`live · ${j.hits.length} hits for "${j.query}" · ${new Date().toLocaleTimeString()}`, true);
   };

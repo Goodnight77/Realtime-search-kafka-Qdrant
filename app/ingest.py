@@ -65,8 +65,11 @@ async def _flush(buf: list[dict]) -> None:
                 },
                 payload={
                     "text": m["text"],
+                    "title": m.get("title"),
                     "ts": int(m.get("ts") or time.time()),
                     "source": m.get("source", "unknown"),
+                    "source_name": m.get("source_name"),
+                    "feed_url": m.get("feed_url"),
                     "stream_id": m.get("id"),
                     "hn_id": m.get("hn_id") or m.get("id"),
                     "author": m.get("author"),
